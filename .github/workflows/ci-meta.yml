@@ -26,17 +26,13 @@ jobs:
           node-version: '24'
       - name: Test game, translations, and Node uploader
         run: npm test
-      - name: Test Python uploader
-        run: python3 -m unittest discover -s tests -p upload_kit_test.py
-      - name: Build game and upload kit
+      - name: Build game
         run: npm run build
-      - name: Save tested bundles
+      - name: Save tested bundle
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: meta-game-${{ github.sha }}
-          path: |
-            maguro-escape.zip
-            maguro-upload-kit.zip
+          path: maguro-escape.zip
           if-no-files-found: error
           retention-days: 14
 
@@ -51,7 +47,7 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24'
-      - name: Download the exact bundles that passed verification
+      - name: Download the exact bundle that passed verification
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           name: meta-game-${{ github.sha }}

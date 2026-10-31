@@ -12,14 +12,8 @@ Node.js 20以上、ビルドにはPython 3が必要です。外部パッケー�
 
 ```sh
 npm run dev     # 開発サーバー（ポート3000、PORTで変更可）
-npm test        # パズル・アップロード処理のテスト
+npm test        # パズル・翻訳・アップロード処理のテスト
 npm run build   # 配布用ファイルとZIPを生成
-```
-
-Python製アップローダーのテスト：
-
-```sh
-python3 -m unittest discover -s tests -p 'upload_kit_test.py'
 ```
 
 ## 配布
@@ -28,4 +22,4 @@ python3 -m unittest discover -s tests -p 'upload_kit_test.py'
 
 [Meta Instant Gamesへのデプロイ手順](docs/deploy-meta.md)
 
-GitHub ActionsでPR・`main`へのpush時にテストとビルドを実行します。`main`では検証済みZIPをMetaへアップロードします。初回にリポジトリのActions Secretsへ `META_APP_ID` と `META_APP_SECRET` の設定が必要です。ステージング切り替えは自動化していません。
+GitHub ActionsでPR・`main`へのpush時にテストとビルドを実行します。`main`では既存のActions Secretsを使い、検証済みZIPをMetaへアップロードします。ステージング切り替えは自動化していません。

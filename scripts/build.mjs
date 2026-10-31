@@ -18,10 +18,6 @@ root = Path(${JSON.stringify(dist)})
 with ZipFile(root.parent / 'maguro-escape.zip', 'w', ZIP_DEFLATED) as archive:
     for file in sorted(root.rglob('*')):
         if file.is_file(): archive.write(file, file.relative_to(root))
-with ZipFile(root.parent / 'maguro-upload-kit.zip', 'w', ZIP_DEFLATED) as archive:
-    archive.write(root.parent / 'maguro-escape.zip', 'maguro-escape.zip')
-    archive.write(root.parent / 'scripts/upload-local.py', 'upload.py')
-    archive.write(root.parent / 'scripts/UPLOAD-KIT.md', 'README.md')
 `], { stdio: 'inherit' });
 if (result.status !== 0) process.exit(result.status || 1);
-console.log('Built dist/, maguro-escape.zip, and maguro-upload-kit.zip');
+console.log('Built dist/ and maguro-escape.zip');

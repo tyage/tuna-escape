@@ -4,6 +4,5 @@ node_modules/
 *.env
 dist/
 maguro-escape.zip
-maguro-upload-kit.zip
 __pycache__/
 test-results/

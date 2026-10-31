@@ -7,7 +7,6 @@
     "dev": "node scripts/serve.mjs",
     "start": "node scripts/serve.mjs",
     "build": "node scripts/build.mjs",
-    "upload": "npm test && npm run build && node scripts/upload.mjs",
     "test": "node --test"
   },
   "engines": { "node": ">=20" }

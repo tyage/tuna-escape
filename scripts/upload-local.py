@@ -56,7 +56,7 @@ def make_request(app_id, app_secret, bundle):
     chunks = []
     for name, value in [("type", "BUNDLE"), ("comment", "Maguro Escape development build")]:
         chunks.append((f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n').encode())
-    chunks.append((f'--{boundary}\r\nContent-Disposition: form-data; name="asset"; filename="maguro-escape.zip"\r\nContent-Type: application/zip\r\n\r\n').encode())
+    chunks.append((f'--{boundary}\r\nContent-Disposition: form-data; name="asset"; filename="maguro-escape.zip"\r\nContent-Type: application/octet-stream\r\n\r\n').encode())
     chunks.extend([bundle, f"\r\n--{boundary}--\r\n".encode()])
     return urllib.request.Request(
         f"https://graph-video.facebook.com/{app_id}/assets",

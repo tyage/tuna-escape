@@ -24,7 +24,7 @@ test('multipart upload keeps credentials off argv and never promotes a build', (
     assert.equal(command, 'curl');
     assert.equal(args.at(-1), 'https://graph-video.facebook.com/123456/assets');
     assert.ok(args.includes('type=BUNDLE'));
-    assert.ok(args.includes('asset=@"/tmp/game.zip";type=application/zip'));
+    assert.ok(args.includes('asset=@"/tmp/game.zip";type=application/octet-stream'));
     assert.ok(!args.join(' ').includes(options.token));
     assert.match(config.input, /Authorization: Bearer test-only-token/);
     assert.ok(!args.includes('--location'));

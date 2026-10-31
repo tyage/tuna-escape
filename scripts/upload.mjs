@@ -24,7 +24,7 @@ export function uploadBundle({ appId, token, zipPath, comment = 'Maguro Escape',
     '--config', '-', '--silent', '--show-error', '--fail-with-body',
     '--proto', '=https', '--connect-timeout', '20', '--max-time', '120',
     '--request', 'POST', '--form-string', 'type=BUNDLE',
-    '--form', `asset=@"${zipPath}";type=application/zip`,
+    '--form', `asset=@"${zipPath}";type=application/octet-stream`,
     '--form-string', `comment=${comment}`, url,
   ], { input, encoding: 'utf8', timeout: 125000, maxBuffer: 1024 * 1024 });
   if (result.status === 56 && /CONNECT tunnel failed, response 403/.test(result.stderr || '')) {

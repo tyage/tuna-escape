@@ -41,6 +41,7 @@ class UploadKitTest(unittest.TestCase):
         fields = {part.get_param("name", header="content-disposition"): part for part in message.iter_parts()}
         self.assertEqual(fields["type"].get_content().strip(), "BUNDLE")
         self.assertEqual(fields["asset"].get_filename(), "maguro-escape.zip")
+        self.assertEqual(fields["asset"].get_content_type(), "application/octet-stream")
         self.assertEqual(fields["asset"].get_payload(decode=True), b"ZIP-content")
 
     def test_invalid_credentials_rejected(self):

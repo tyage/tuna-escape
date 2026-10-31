@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f7f8f2">
-  <meta name="description" content="マグロはまっすぐしか泳げない。順番を見つけて、みんなを広い海へ。ひらめきで遊ぶ脱出パズル。">
+  <meta name="description" data-i18n-content="page.description" content="マグロはまっすぐしか泳げない。順番を見つけて、みんなを広い海へ。ひらめきで遊ぶ脱出パズル。">
   <title>まぐろ、海へ。 | TUNA ESCAPE</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./src/style.css">
@@ -12,56 +12,57 @@
 <body>
   <div class="app">
     <header class="topbar">
-      <a class="wordmark" href="./" aria-label="まぐろ、海へ。ホーム"><span class="brand-icon">↗</span> TUNA ESCAPE</a>
+      <a class="wordmark" href="./" data-i18n-aria-label="home.label" aria-label="まぐろ、海へ。ホーム"><span class="brand-icon">↗</span> TUNA ESCAPE</a>
       <div class="top-actions">
+        <button class="language-button" id="language" lang="en" aria-label="Switch to English">English</button>
         <button class="icon-button" id="sound" aria-label="音をオンにする" aria-pressed="false"></button>
-        <button class="icon-button" id="help" aria-label="遊び方">?</button>
+        <button class="icon-button" id="help" data-i18n-aria-label="control.help" aria-label="遊び方">?</button>
       </div>
     </header>
 
     <main>
       <section class="intro">
         <div class="eyebrow"><span></span> A LITTLE OCEAN PUZZLE</div>
-        <h1>まぐろ、海へ<span class="title-dot">。</span></h1>
-        <p>まっすぐな彼らに、自由な海を。</p>
+        <h1><span data-i18n="intro.title">まぐろ、海へ</span><span class="title-dot" data-i18n="intro.punctuation">。</span></h1>
+        <p data-i18n="intro.subtitle">まっすぐな彼らに、自由な海を。</p>
       </section>
 
-      <section class="game" aria-label="マグロ脱出パズル">
+      <section class="game" data-i18n-aria-label="game.label" aria-label="マグロ脱出パズル">
         <div class="level-bar">
           <div class="level-title"><span class="section-label">STAGE</span><strong id="stage">01</strong><span class="level-name" id="level-name">はじまりの入江</span></div>
-          <button id="levels" class="grid-button" aria-label="ステージを選ぶ"><span></span><span></span><span></span><span></span></button>
+          <button id="levels" class="grid-button" data-i18n-aria-label="stages.choose" aria-label="ステージを選ぶ"><span></span><span></span><span></span><span></span></button>
         </div>
         <div class="progress-panel">
-          <div class="progress-copy"><span>海へ帰ったマグロ</span><span><strong id="escaped">0</strong><span class="total" id="total"> / 20</span><span class="unit">匹</span></span></div>
-          <div class="progress-track" role="progressbar" aria-label="脱出したマグロ" aria-valuemin="0" aria-valuenow="0" aria-valuemax="20"><div id="progress-fill"></div></div>
+          <div class="progress-copy"><span data-i18n="progress.label">海へ帰ったマグロ</span><span><strong id="escaped">0</strong><span class="total" id="total"> / 20</span><span class="unit" data-i18n="progress.unit">匹</span></span></div>
+          <div class="progress-track" role="progressbar" data-i18n-aria-label="progress.bar" aria-label="脱出したマグロ" aria-valuemin="0" aria-valuenow="0" aria-valuemax="20"><div id="progress-fill"></div></div>
         </div>
 
         <div class="ocean-frame">
           <div class="ocean-top"><span class="ocean-label"><i></i> OPEN OCEAN</span><span class="wave-mark">≈ ≈ ≈</span></div>
           <div class="board-wrap">
             <div class="sea-ripple ripple-one"></div><div class="sea-ripple ripple-two"></div>
-            <div id="board" class="board" aria-label="マグロを選んで脱出させよう"></div>
+            <div id="board" class="board" data-i18n-aria-label="board.label" aria-label="マグロを選んで脱出させよう"></div>
             <div id="celebration" class="celebration" hidden>
-              <div class="complete-icon">↗</div><span class="section-label">ALL CLEAR</span><h2>みんな、海へ！</h2><p>広い海で、また会おう。</p><button id="next" class="primary-button">次の海へ <span>→</span></button>
+              <div class="complete-icon">↗</div><span class="section-label">ALL CLEAR</span><h2 data-i18n="complete.title">みんな、海へ！</h2><p data-i18n="complete.subtitle">広い海で、また会おう。</p><button id="next" class="primary-button">次の海へ <span>→</span></button>
             </div>
           </div>
-          <div class="ocean-bottom"><span>↖</span><span>出口は、海のすべての端。</span><span>↗</span></div>
+          <div class="ocean-bottom"><span>↖</span><span data-i18n="board.exit">出口は、海のすべての端。</span><span>↗</span></div>
         </div>
 
         <div class="status-line" role="status" aria-live="polite" id="status">気になるマグロを、タップしてみよう。</div>
         <div class="controls">
-          <button id="undo" class="tool-button" disabled><span class="tool-icon">↶</span><span>ひとつ戻す</span></button>
-          <button id="reset" class="tool-button"><span class="tool-icon">⟳</span><span>やり直す</span></button>
-          <button id="hint" class="tool-button hint-button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M9 18h6m-5 3h4M8 14a6 6 0 1 1 8 0c-1 1-1 2-1 2H9s0-1-1-2Z"/></svg><span>ヒント</span></button>
+          <button id="undo" class="tool-button" disabled><span class="tool-icon">↶</span><span data-i18n="control.undo">ひとつ戻す</span></button>
+          <button id="reset" class="tool-button"><span class="tool-icon">⟳</span><span data-i18n="control.reset">やり直す</span></button>
+          <button id="hint" class="tool-button hint-button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M9 18h6m-5 3h4M8 14a6 6 0 1 1 8 0c-1 1-1 2-1 2H9s0-1-1-2Z"/></svg><span data-i18n="control.hint">ヒント</span></button>
         </div>
       </section>
 
-      <section class="howto"><div class="howto-icon">↗</div><div><h2>長いマグロも、まっすぐ一直線。</h2><p>1〜3マスのマグロは、頭の向きへ泳ぎます。<br>仲間の体やしっぽにぶつからない順番で、全員を海へ。</p></div></section>
+      <section class="howto"><div class="howto-icon">↗</div><div><h2 data-i18n="howto.title">長いマグロも、まっすぐ一直線。</h2><p><span data-i18n="howto.line1">1〜3マスのマグロは、頭の向きへ泳ぎます。</span><br><span data-i18n="howto.line2">仲間の体やしっぽにぶつからない順番で、全員を海へ。</span></p></div></section>
     </main>
     <footer><span>TAKE A BREATH. FIND YOUR FLOW.</span><span class="footer-fish">〜 &gt;&lt;(((º&gt;</span></footer>
   </div>
-  <dialog id="help-dialog"><button class="dialog-close" aria-label="閉じる">×</button><div class="eyebrow">HOW TO PLAY</div><h2>流れを、見つけよう。</h2><div class="help-fish" id="help-fish"></div><ol><li>1〜3マスのマグロをタップすると、頭の向きへ進みます。</li><li>仲間の体やしっぽが進路にあると、まだ脱出できません。</li><li>順番を考えて、すべてのマグロを海の外へ！</li></ol><p>体のどこをタップしても選べます。<br>時間制限も、失敗のペナルティもありません。<br>ヒントと「ひとつ戻す」は、いつでも使えます。</p><button class="primary-button close-help">海へ出かける →</button></dialog>
-  <dialog id="levels-dialog"><button class="dialog-close" aria-label="閉じる">×</button><div class="eyebrow">CHOOSE YOUR OCEAN</div><h2>今日は、どの海へ？</h2><div id="stage-list" class="stage-list"></div></dialog>
+  <dialog id="help-dialog"><button class="dialog-close" data-i18n-aria-label="dialog.close" aria-label="閉じる">×</button><div class="eyebrow">HOW TO PLAY</div><h2 data-i18n="help.title">流れを、見つけよう。</h2><div class="help-fish" id="help-fish"></div><ol><li data-i18n="help.step1">1〜3マスのマグロをタップすると、頭の向きへ進みます。</li><li data-i18n="help.step2">仲間の体やしっぽが進路にあると、まだ脱出できません。</li><li data-i18n="help.step3">順番を考えて、すべてのマグロを海の外へ！</li></ol><p><span data-i18n="help.note1">体のどこをタップしても選べます。</span><br><span data-i18n="help.note2">時間制限も、失敗のペナルティもありません。</span><br><span data-i18n="help.note3">ヒントと「ひとつ戻す」は、いつでも使えます。</span></p><button class="primary-button close-help" data-i18n="help.start">海へ出かける →</button></dialog>
+  <dialog id="levels-dialog"><button class="dialog-close" data-i18n-aria-label="dialog.close" aria-label="閉じる">×</button><div class="eyebrow">CHOOSE YOUR OCEAN</div><h2 data-i18n="stages.title">今日は、どの海へ？</h2><div id="stage-list" class="stage-list"></div></dialog>
   <script src="https://mocos.kitchen/ad.js"></script>
   <script type="module" src="./src/main.js"></script>
 </body>

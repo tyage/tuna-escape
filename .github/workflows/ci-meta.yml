@@ -1,0 +1,69 @@
+name: CI and Meta upload
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-meta-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Test and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Test game, translations, and Node uploader
+        run: npm test
+      - name: Test Python uploader
+        run: python3 -m unittest discover -s tests -p upload_kit_test.py
+      - name: Build game and upload kit
+        run: npm run build
+      - name: Save tested bundles
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: meta-game-${{ github.sha }}
+          path: |
+            maguro-escape.zip
+            maguro-upload-kit.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  upload:
+    name: Upload verified build to Meta
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Download the exact bundles that passed verification
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: meta-game-${{ github.sha }}
+      - name: Upload to Meta
+        env:
+          META_APP_ID: ${{ secrets.META_APP_ID }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          META_BUILD_COMMENT: TUNA ESCAPE ${{ github.sha }}
+        run: |
+          if [ -z "$META_APP_ID" ] || [ -z "$META_APP_SECRET" ]; then
+            echo '::error::Set repository Actions secrets META_APP_ID and META_APP_SECRET.'
+            exit 1
+          fi
+          node scripts/upload.mjs
+          echo 'Meta accepted the uploaded build. Staging has not been switched by this workflow.' >> "$GITHUB_STEP_SUMMARY"

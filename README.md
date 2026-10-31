@@ -4,6 +4,8 @@
 
 全16ステージ。ヒント、1手戻す、やり直し、進行状況の端末内保存に対応しています。スマートフォンでもPCでも遊べます。
 
+日本語・英語に対応しています。Metaの言語設定、Web版ではブラウザの言語設定から自動選択し、その他の言語では英語を表示します。画面上部の言語ボタンで切り替えると、その選択を端末内に保存します。進行状況は引き継がれます。
+
 ## 開発
 
 Node.js 20以上、ビルドにはPython 3が必要です。外部パッケージのインストールは不要です。
@@ -25,3 +27,5 @@ python3 -m unittest discover -s tests -p 'upload_kit_test.py'
 `dist/` がWeb配信用、`maguro-escape.zip` がMeta Instant Gamesへのアップロード用です。
 
 [Meta Instant Gamesへのデプロイ手順](docs/deploy-meta.md)
+
+GitHub ActionsでPR・`main`へのpush時にテストとビルドを実行します。`main`では検証済みZIPをMetaへアップロードします。初回にリポジトリのActions Secretsへ `META_APP_ID` と `META_APP_SECRET` の設定が必要です。ステージング切り替えは自動化していません。

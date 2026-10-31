@@ -39,6 +39,23 @@ APIの送信先は `https://graph-video.facebook.com/{app-id}/assets` です。H
 
 [Meta: App Access Tokens](https://developers.facebook.com/documentation/facebook-login/guides/access-tokens#apptokens)
 
+## GitHub Actions
+
+`.github/workflows/ci-meta.yml` はPR・`main`へのpushでNode.jsとPythonのテスト、翻訳の検証、ビルドを実行し、ゲームZIPとアップロードキットを14日間保存します。外部パッケージのインストールは不要です。
+
+`main`へのpush、または `main`を選んだ手動実行では、同じ実行内で検証したZIPをダウンロードしてMetaへ送信します。PRからのアップロードは行いません。ビルドコメントには対象コミットのSHAを記録します。
+
+初回のみ、GitHubのリポジトリ設定 → Secrets and variables → Actions に次のリポジトリSecretsを設定してください。実際の値をソースやworkflowファイルへ記載しないでください。
+
+| Secret | 内容 |
+| --- | --- |
+| `META_APP_ID` | 対象MetaアプリのApp ID |
+| `META_APP_SECRET` | 同じアプリのApp Secret |
+
+Secretsが未設定の場合、テスト・ビルドは実行され、アップロードジョブは設定不足を明示して失敗します。設定後はActionsの「CI and Meta upload」から `main`を選んで再実行できます。
+
+このworkflowが自動化するのはアップロードの受理までです。デプロイ完了には、MetaのWebホスティング画面で対象コミットのビルドをステージングへ切り替え、起動・言語表示・操作を確認する必要があります。workflowの成功をステージング反映の証拠にはしないでください。
+
 ## 対話入力でアップロード
 
 ビルドで生成される `maguro-upload-kit.zip` を展開し、同梱のREADMEに従って `python3 upload.py`（Windowsは `py -3 upload.py`）を実行します。App Secretは非表示入力で、ファイルには保存しません。

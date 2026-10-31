@@ -1,8 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { uploadBundle } from '../scripts/upload.mjs';
+import { uploadBundle, credentialsFromEnv } from '../scripts/upload.mjs';
 
 const options = { appId: '123456', token: 'test-only-token', zipPath: '/tmp/game.zip' };
+test('env file App ID and Secret are supported, with explicit token taking precedence', () => {
+  assert.deepEqual(credentialsFromEnv({ APP_ID: '123', APP_SECRET: 'fake-secret' }), { appId: '123', token: '123|fake-secret' });
+  assert.deepEqual(credentialsFromEnv({ META_APP_ID: '456', APP_ID: '123', APP_SECRET: 'fake-secret', META_UPLOAD_TOKEN: 'fake-token' }), { appId: '456', token: 'fake-token' });
+  assert.deepEqual(credentialsFromEnv({ APP_ID: '123' }), { appId: '123', token: undefined });
+});
+test('proxy CONNECT rejection is distinguished from Meta API credential failure', () => {
+  assert.throws(() => uploadBundle(options, () => ({ status: 56, stdout: '', stderr: 'curl: (56) CONNECT tunnel failed, response 403; test-only-token' })), error => {
+    assert.match(error.message, /CONNECT 403/);
+    assert.match(error.message, /Meta APIには到達していない/);
+    assert.ok(!error.message.includes(options.token));
+    return true;
+  });
+  assert.throws(() => uploadBundle(options, () => ({ status: 22, stdout: '{"error":{"code":190}}' })), /Meta error code: 190/);
+});
 test('multipart upload keeps credentials off argv and never promotes a build', () => {
   let calls = 0;
   const result = uploadBundle(options, (command, args, config) => {

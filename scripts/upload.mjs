@@ -3,6 +3,13 @@ import { statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+export function credentialsFromEnv(env) {
+  const appId = env.META_APP_ID || env.APP_ID;
+  const appSecret = env.META_APP_SECRET || env.APP_SECRET;
+  const token = env.META_UPLOAD_TOKEN || (appId && appSecret ? `${appId}|${appSecret}` : undefined);
+  return { appId, token };
+}
+
 // Upload a bundle only. Never promote it to a live build automatically.
 export function uploadBundle({ appId, token, zipPath, comment = 'Maguro Escape', version = '' }, run = spawnSync) {
   if (!/^\d+$/.test(appId || '')) throw new Error('META_APP_ID に Meta アプリの数値 ID を設定してください。');
@@ -20,6 +27,9 @@ export function uploadBundle({ appId, token, zipPath, comment = 'Maguro Escape',
     '--form', `asset=@"${zipPath}";type=application/zip`,
     '--form-string', `comment=${comment}`, url,
   ], { input, encoding: 'utf8', timeout: 125000, maxBuffer: 1024 * 1024 });
+  if (result.status === 56 && /CONNECT tunnel failed, response 403/.test(result.stderr || '')) {
+    throw new Error('HTTPS中継サーバーが接続を拒否しました（CONNECT 403）。Meta APIには到達していないため、実行環境の通信許可の適用状態を確認してください。');
+  }
   // Never echo raw API errors/stderr, which could contain sensitive content.
   let payload;
   try { payload = JSON.parse(result.stdout || '{}'); } catch { /* checked below */ }
@@ -37,7 +47,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     const zipPath = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'maguro-escape.zip');
     if (!statSync(zipPath).isFile()) throw new Error('npm run build を先に実行してください。');
-    uploadBundle({ appId: process.env.META_APP_ID, token: process.env.META_UPLOAD_TOKEN, zipPath, version: process.env.META_GRAPH_VERSION, comment: process.env.META_BUILD_COMMENT || 'Maguro Escape development build' });
+    uploadBundle({ ...credentialsFromEnv(process.env), zipPath, version: process.env.META_GRAPH_VERSION, comment: process.env.META_BUILD_COMMENT || 'Maguro Escape development build' });
     console.log('Meta がアップロードを受理しました。管理画面で処理結果とテストビルドを確認してください。公開操作は行っていません。');
   } catch (error) {
     console.error(error.code === 'ENOENT' ? 'maguro-escape.zip がありません。npm run build を先に実行してください。' : error.message);

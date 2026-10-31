@@ -25,6 +25,28 @@ def validate_bundle(path):
             raise ValueError("ゲーム本体の ZIP を同じフォルダーに置いてください。")
 
 
+def credentials_from_text(text):
+    fields = {}
+    for line in text.lstrip("\ufeff").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        match = re.fullmatch(r"(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)", line)
+        if not match:
+            raise ValueError("env ファイルに読み取れない行があります。KEY=VALUE 形式を確認してください。")
+        value = match[2].strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        else:
+            value = re.split(r"\s+#", value, maxsplit=1)[0].rstrip()
+        fields[match[1]] = value
+    app_id = fields.get("META_APP_ID") or fields.get("APP_ID")
+    app_secret = fields.get("META_APP_SECRET") or fields.get("APP_SECRET")
+    if not app_id or not app_secret:
+        raise ValueError("env ファイルに APP_ID と APP_SECRET が必要です。")
+    return app_id, app_secret
+
+
 def make_request(app_id, app_secret, bundle):
     if not re.fullmatch(r"[0-9]+", app_id):
         raise ValueError("App ID は半角数字で入力してください。")
@@ -62,7 +84,11 @@ def upload(request):
             pass
         suffix = f" / Meta error code {code}" if type(code) is int else ""
         raise ValueError(f"Meta がアップロードを拒否しました。HTTP {error.code}{suffix}") from None
-    except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+    except urllib.error.URLError as error:
+        if "Tunnel connection failed" in str(error.reason) and "403" in str(error.reason):
+            raise ValueError("HTTPS中継サーバーが接続を拒否しました（CONNECT 403）。Meta APIには到達していません。") from None
+        raise ValueError("接続に失敗しました。通信設定と Meta の利用状況を確認してください。") from None
+    except (TimeoutError, ValueError, OSError):
         raise ValueError("接続または応答の確認に失敗しました。通信設定と Meta の利用状況を確認してください。") from None
     if not isinstance(result, dict) or result.get("error") or not (
         result.get("success") is True or isinstance(result.get("id"), str) or isinstance(result.get("asset_id"), str)
@@ -73,19 +99,28 @@ def upload(request):
 def main():
     parser = argparse.ArgumentParser(description="Meta Instant Games ローカルアップローダー")
     parser.add_argument("--check", action="store_true", help="認証・送信をせず、ZIP の整合性だけを確認")
+    parser.add_argument("--env-file", type=Path, help="APP_ID と APP_SECRET を記載した既存ファイル")
     args = parser.parse_args()
     bundle = Path(__file__).resolve().with_name("maguro-escape.zip")
     try:
         validate_bundle(bundle)
+        credentials = credentials_from_text(args.env_file.read_text(encoding="utf-8-sig")) if args.env_file else None
         if args.check:
-            print("ゲーム ZIP の整合性確認: OK（ネットワーク送信なし）")
+            if credentials:
+                make_request(*credentials, b"")
+                print("ゲーム ZIP の整合性・認証ファイル形式: OK（ネットワーク送信なし）")
+            else:
+                print("ゲーム ZIP の整合性確認: OK（ネットワーク送信なし）")
             return 0
-        if not sys.stdin.isatty() or not sys.stderr.isatty():
+        if not credentials and (not sys.stdin.isatty() or not sys.stderr.isatty()):
             raise ValueError("App Secret を非表示で入力するため、手元のターミナルから実行してください。")
         print("Meta に開発用ビルドをアップロードします。一般公開は行いません。")
         print("入力した認証情報はファイルに保存しません。")
-        app_id = input("App ID: ").strip()
-        app_secret = getpass.getpass("App Secret（入力しても表示されません）: ")
+        if credentials:
+            app_id, app_secret = credentials
+        else:
+            app_id = input("App ID: ").strip()
+            app_secret = getpass.getpass("App Secret（入力しても表示されません）: ")
         request = make_request(app_id, app_secret, bundle.read_bytes())
         upload(request)
         print("Meta がアップロードを受理しました。管理画面で処理結果を確認してください。")
@@ -94,7 +129,7 @@ def main():
         if isinstance(error, ValueError):
             print(str(error), file=sys.stderr)
         else:
-            print("ゲーム ZIP の読み込みに失敗しました。キットを展開したフォルダーから実行してください。", file=sys.stderr)
+            print("入力ファイルの読み込みに失敗しました。ゲーム ZIP と指定した env ファイルの場所を確認してください。", file=sys.stderr)
         return 1
     except (KeyboardInterrupt, EOFError):
         print("\n中止しました。", file=sys.stderr)

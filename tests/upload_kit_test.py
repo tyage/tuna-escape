@@ -13,6 +13,23 @@ spec.loader.exec_module(module)
 
 
 class UploadKitTest(unittest.TestCase):
+    def test_env_file_parses_literals_without_executing_shell(self):
+        self.assertEqual(module.credentials_from_text('\ufeff# comment\nexport APP_ID="123"\nAPP_SECRET=\'$(not-executed)\'\n'), ("123", "$(not-executed)"))
+        self.assertEqual(module.credentials_from_text('META_APP_ID=456 # comment\nMETA_APP_SECRET=fake-only-secret\n'), ("456", "fake-only-secret"))
+
+    def test_env_errors_never_include_file_contents(self):
+        for text in ["APP_ID=123", "APP_SECRET=fake-only-secret", "fake-only-secret"]:
+            with self.assertRaises(ValueError) as caught:
+                module.credentials_from_text(text)
+            self.assertNotIn("fake-only-secret", str(caught.exception))
+
+    def test_proxy_rejection_is_not_reported_as_meta_auth_failure(self):
+        opener = MagicMock()
+        opener.open.side_effect = urllib.error.URLError("Tunnel connection failed: 403 Forbidden")
+        with patch.object(module.urllib.request, "build_opener", return_value=opener):
+            with self.assertRaisesRegex(ValueError, "CONNECT 403"):
+                module.upload(module.make_request("123", "fake-only-secret", b"zip"))
+
     def test_request_is_multipart_and_secret_only_in_authorization(self):
         request = module.make_request("123456", "fake-only-app-secret", b"ZIP-content")
         self.assertEqual(request.full_url, "https://graph-video.facebook.com/123456/assets")

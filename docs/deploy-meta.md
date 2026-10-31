@@ -43,6 +43,8 @@ APIの送信先は `https://graph-video.facebook.com/{app-id}/assets` です。H
 
 ビルドで生成される `maguro-upload-kit.zip` を展開し、同梱のREADMEに従って `python3 upload.py`（Windowsは `py -3 upload.py`）を実行します。App Secretは非表示入力で、ファイルには保存しません。
 
+既存の認証ファイルを使う場合は `python3 upload.py --env-file /path/to/credentials.env` で、入力を省略できます。
+
 ## 実行時の動作
 
 Meta上ではSDKの初期化後にゲームを開始します。localhostではSDKを使わず、その他のWeb環境でもSDKが使えなければWeb版として起動します。

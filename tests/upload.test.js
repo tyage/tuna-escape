@@ -22,11 +22,13 @@ test('credentials keep the App Secret separate from access tokens, including emp
 test('existing App ID and App Secret automatically issue an App Access Token through OAuth', async () => {
   const appSecret = 'fake-only-client-secret';
   const issuedToken = 'GG|123456|fake-only-issued-app-token';
+  const uploadToken = 'GG-test-only-user-token';
   let calls = 0;
-  const result = await deployBundle({ appId: '123456', appSecret, zipPath }, (command, args, config) => {
+  const result = await deployBundle({ appId: '123456', appSecret, uploadToken, zipPath }, (command, args, config) => {
     calls++;
     assert.ok(!args.join(' ').includes(appSecret));
     assert.ok(!args.join(' ').includes('fake-only-issued-app-token'));
+    assert.ok(!args.join(' ').includes(uploadToken));
     assert.ok(!args.includes('--location'));
     if (calls === 1) {
       assert.equal(args.at(-1), 'https://graph.facebook.com/oauth/access_token');
@@ -36,12 +38,12 @@ test('existing App ID and App Secret automatically issue an App Access Token thr
     }
     assert.ok(!config.input.includes(appSecret));
     if (calls === 2) {
-      assert.ok(config.input.includes('Bearer ' + issuedToken));
+      assert.ok(config.input.includes('Bearer ' + uploadToken));
       return ok('{"id":"upload:app-session"}');
     }
     if (calls === 3) {
       assert.equal(args.at(-1), 'https://rupload.facebook.com/gg_graph_api/upload:app-session');
-      assert.ok(config.input.includes('OAuth ' + issuedToken));
+      assert.ok(config.input.includes('OAuth ' + uploadToken));
       return ok(JSON.stringify({ bundle_instance_id: bundleId }));
     }
     assert.equal(calls, 4);
@@ -55,7 +57,7 @@ test('existing App ID and App Secret automatically issue an App Access Token thr
 
 test('OAuth failure stops before uploading and never logs its response or secret', async () => {
   let calls = 0;
-  await assert.rejects(deployBundle({ appId: '123456', appSecret: 'private-client-secret', zipPath }, () => {
+  await assert.rejects(deployBundle({ appId: '123456', appSecret: 'private-client-secret', uploadToken: options.uploadToken, zipPath }, () => {
     calls++;
     return { status: 22, stdout: '{"error":{"message":"private-client-secret"}}' };
   }, noWait), error => /OAuth/.test(error.message) && !error.message.includes('private-client-secret'));
@@ -98,7 +100,7 @@ for (const [prefix, namespace] of [['EAA', 'fb_game_bundle'], ['GG', 'gg_graph_a
 }
 
 test('invalid credentials and routing make no requests', async () => {
-  for (const override of [{ appId: '../other' }, { uploadToken: options.appToken }, { uploadToken: 'EAA-bad\nheader' }, { appToken: undefined }, { version: '../route' }, { comment: 'bad\nheader' }]) {
+  for (const override of [{ appId: '../other' }, { uploadToken: undefined }, { uploadToken: options.appToken }, { uploadToken: 'EAA-bad\nheader' }, { appToken: undefined }, { version: '../route' }, { comment: 'bad\nheader' }]) {
     let calls = 0;
     await assert.rejects(deployBundle({ ...options, ...override }, () => { calls++; return ok('{}'); }, noWait));
     assert.equal(calls, 0);
@@ -144,20 +146,20 @@ test('HTTP 200 with success false is never reported as a successful production s
 });
 
 for (const message of ['Failed to productionize app asset', 'Version must be finished processing in order to productionize']) {
-test(`processing retry keeps the same ID without reupload: ${message}`, async () => {
-  let calls = 0;
-  const waits = [];
-  const result = await deployBundle(options, (command, args) => {
-    calls++;
-    if (calls === 1) return ok('{"id":"upload:test-session"}');
-    if (calls === 2) return ok(JSON.stringify({ bundle_instance_id: bundleId }));
-    assert.deepEqual(JSON.parse(args[args.indexOf('--data') + 1]), { bundle_instance_id: bundleId });
-    return ok(calls === 3 ? JSON.stringify({ success: false, message }) : '{"success":true}');
-  }, async ms => waits.push(ms));
-  assert.equal(result.bundleInstanceId, bundleId);
-  assert.equal(calls, 4);
-  assert.deepEqual(waits, [20000]);
-});
+  test(`processing retry keeps the same ID without reupload: ${message}`, async () => {
+    let calls = 0;
+    const waits = [];
+    const result = await deployBundle(options, (command, args) => {
+      calls++;
+      if (calls === 1) return ok('{"id":"upload:test-session"}');
+      if (calls === 2) return ok(JSON.stringify({ bundle_instance_id: bundleId }));
+      assert.deepEqual(JSON.parse(args[args.indexOf('--data') + 1]), { bundle_instance_id: bundleId });
+      return ok(calls === 3 ? JSON.stringify({ success: false, message }) : '{"success":true}');
+    }, async ms => waits.push(ms));
+    assert.equal(result.bundleInstanceId, bundleId);
+    assert.equal(calls, 4);
+    assert.deepEqual(waits, [20000]);
+  });
 }
 
 test('API errors redact the app secret and unknown responses cannot claim success', async () => {

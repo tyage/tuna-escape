@@ -15,9 +15,9 @@ const result = spawnSync('python3', ['-c', `
 from pathlib import Path
 from zipfile import ZipFile, ZIP_DEFLATED
 root = Path(${JSON.stringify(dist)})
-with ZipFile(root.parent / 'maguro-escape.zip', 'w', ZIP_DEFLATED) as archive:
+with ZipFile(root.parent / 'tuna-escape.zip', 'w', ZIP_DEFLATED) as archive:
     for file in sorted(root.rglob('*')):
         if file.is_file(): archive.write(file, file.relative_to(root))
 `], { stdio: 'inherit' });
 if (result.status !== 0) process.exit(result.status || 1);
-console.log('Built dist/ and maguro-escape.zip');
+console.log('Built dist/ and tuna-escape.zip');

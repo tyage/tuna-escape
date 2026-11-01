@@ -18,4 +18,4 @@ http.createServer(async (request, response) => {
     response.writeHead(200, { 'Content-Type': mime[extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
     response.end(await readFile(file));
   } catch { response.writeHead(404).end('Not found'); }
-}).listen(port, '0.0.0.0', () => console.log(`Maguro Escape server listening on port ${port}`));
+}).listen(port, '0.0.0.0', () => console.log(`TUNA ESCAPE server listening on port ${port}`));

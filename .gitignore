@@ -3,6 +3,6 @@ node_modules/
 .env.*
 *.env
 dist/
-maguro-escape.zip
+tuna-escape.zip
 __pycache__/
 test-results/

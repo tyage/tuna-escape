@@ -18,7 +18,7 @@ npm run build   # 配布用ファイルとZIPを生成
 
 ## 配布
 
-`dist/` がWeb配信用、`maguro-escape.zip` がMeta Instant Gamesへのアップロード用です。
+`dist/` がWeb配信用、`tuna-escape.zip` がMeta Instant Gamesへのアップロード用です。
 
 [Meta Instant Gamesへのデプロイ手順](docs/deploy-meta.md)
 

@@ -77,8 +77,8 @@ export async function deployBundle({ appId, appSecret, uploadToken, appToken, zi
   if (typeof uploadToken === 'string' && /^[a-f0-9]{32}$/i.test(uploadToken)) {
     throw new Error('META_UPLOAD_TOKEN の値はApp Secret形式です（値は非表示）。App SecretはMETA_APP_SECRETへ設定してください。App Access TokenはOAuthで発行します。');
   }
-  if (uploadToken !== undefined && (!uploadToken || !/^(GG|EAA)/.test(uploadToken) || /[\r\n\0]/.test(uploadToken))) {
-    throw new Error('META_UPLOAD_TOKEN に有効なAccess Tokenを設定してください。省略するとApp Access Tokenを使用します。');
+  if (!uploadToken || !/^(GG|EAA)/.test(uploadToken) || /[\r\n\0]/.test(uploadToken)) {
+    throw new Error('META_UPLOAD_TOKEN に対象アプリの管理者・開発者のUser Access Token、またはSystem User Tokenを設定してください。');
   }
   if (appToken !== undefined && (!appToken || /[\r\n\0]/.test(appToken))) throw new Error('META_APP_ACCESS_TOKEN の形式が不正です。');
   if (!/^v\d+\.\d+$/.test(version)) throw new Error('META_GRAPH_VERSION は vXX.X 形式で指定してください。');
@@ -86,7 +86,6 @@ export async function deployBundle({ appId, appSecret, uploadToken, appToken, zi
   const file = statSync(zipPath);
   if (!file.isFile() || !file.size) throw new Error('ゲームZIPがありません。npm run build を実行してください。');
   const issuedToken = appToken || issueAppToken(appId, appSecret, run);
-  uploadToken ||= issuedToken;
   // The production API expects appId|token; Meta OAuth can return GG|appId|token.
   appToken = issuedToken.startsWith(`GG|${appId}|`) ? issuedToken.slice(3) : issuedToken;
 
@@ -132,7 +131,7 @@ export async function deployBundle({ appId, appSecret, uploadToken, appToken, zi
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     if (process.argv.length !== 2) throw new Error('ビルドIDの手動指定は不要です。node scripts/upload.mjs でアップロードから本番切替まで実行します。');
-    const zipPath = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'maguro-escape.zip');
+    const zipPath = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'tuna-escape.zip');
     const result = await deployBundle({ ...credentialsFromEnv(process.env), zipPath, version: process.env.META_GRAPH_VERSION || 'v24.0', comment: process.env.META_BUILD_COMMENT || 'TUNA ESCAPE' });
     console.log(`Meta がアップロードしたビルド ${result.bundleInstanceId} の本番切替を受理しました。`);
   } catch (error) {

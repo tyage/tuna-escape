@@ -40,7 +40,7 @@ npm test
 npm run build
 ```
 
-Web配信用ファイルは `dist/`、Metaへのアップロード用は `maguro-escape.zip` です。ZIPの直下に `index.html` と `fbapp-config.json` が含まれます。
+Web配信用ファイルは `dist/`、Metaへのアップロード用は `tuna-escape.zip` です。ZIPの直下に `index.html` と `fbapp-config.json` が含まれます。
 
 ## 実行時の動作
 

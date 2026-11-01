@@ -58,5 +58,15 @@ jobs:
           META_UPLOAD_TOKEN: ${{ secrets.META_UPLOAD_TOKEN }}
           META_BUILD_COMMENT: TUNA ESCAPE ${{ github.sha }}
         run: |
+          node --input-type=module <<'JS'
+          const value = process.env.META_APP_SECRET || '';
+          if (/^[a-f0-9]{32}$/i.test(value)) {
+            console.log('META_APP_SECRET: App Secret形式（値は非表示）');
+          } else if (/^(GG|EAA)/.test(value)) {
+            console.log('META_APP_SECRET: GG/EAAトークン形式（値は非表示）');
+          } else {
+            console.log('META_APP_SECRET: その他の形式または未設定（値は非表示）');
+          }
+          JS
           node scripts/upload.mjs
           echo 'Meta accepted production promotion for the bundle uploaded in this run.' >> "$GITHUB_STEP_SUMMARY"

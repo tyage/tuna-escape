@@ -60,6 +60,11 @@ test('invalid credentials and routing make no requests', async () => {
   }
 });
 
+test('an app-secret-shaped value is diagnosed without printing or sending it', async () => {
+  const uploadToken = '0123456789abcdef0123456789abcdef';
+  await assert.rejects(deployBundle({ ...options, uploadToken }, () => assert.fail('must not send'), noWait), error => /App Secret形式/.test(error.message) && !error.message.includes(uploadToken));
+});
+
 test('upload refusal is reported without leaking either credential or promoting anything', async () => {
   let calls = 0;
   await assert.rejects(deployBundle(options, () => {

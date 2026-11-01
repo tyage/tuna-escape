@@ -48,6 +48,9 @@ function post(url, token, scheme, args, operation, run) {
 
 export async function deployBundle({ appId, uploadToken, appToken, zipPath, comment = 'TUNA ESCAPE', version = 'v24.0' }, run = spawnSync, wait = ms => new Promise(resolve => setTimeout(resolve, ms))) {
   if (!/^\d+$/.test(appId || '')) throw new Error('META_APP_ID が必要です。');
+  if (typeof uploadToken === 'string' && /^[a-f0-9]{32}$/i.test(uploadToken)) {
+    throw new Error('参照したSecretの値はApp Secret形式です（値は非表示）。アップロードには別途、UserまたはSystem User Access Tokenが必要です。');
+  }
   if (!uploadToken || !/^(GG|EAA)/.test(uploadToken) || /[\r\n\0]/.test(uploadToken)) {
     throw new Error('META_UPLOAD_TOKEN に対象アプリの管理者・開発者権限を持つUserまたはSystem User Access Tokenを設定してください。App Secretだけでは新アップロードAPIを利用できません。');
   }

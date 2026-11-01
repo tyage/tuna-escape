@@ -22,4 +22,4 @@ npm run build   # 配布用ファイルとZIPを生成
 
 [Meta Instant Gamesへのデプロイ手順](docs/deploy-meta.md)
 
-GitHub ActionsでPR・`main`へのpush時にテストとビルドを実行します。`main`では既存のActions Secretsを使い、検証済みZIPをMetaへアップロードします。本番切替はActionsの手動実行で `bundle_instance_id` を指定します。
+GitHub ActionsでPR・`main`へのpush時にテストとビルドを実行します。`main`では検証済みZIPをMetaへアップロードし、その応答のビルドIDで本番へ切り替えます。ビルドIDの手動指定は不要です。必要なActions Secretsは[デプロイ手順](docs/deploy-meta.md)を参照してください。

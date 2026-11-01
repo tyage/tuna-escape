@@ -1,88 +1,122 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { uploadBundle, credentialsFromEnv, productionCredentialsFromEnv, promoteBundle } from '../scripts/upload.mjs';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { credentialsFromEnv, deployBundle } from '../scripts/upload.mjs';
 
-const options = { appId: '123456', token: 'test-only-token', zipPath: '/tmp/game.zip' };
-test('env file App ID and Secret are supported, with explicit token taking precedence', () => {
-  assert.deepEqual(credentialsFromEnv({ APP_ID: '123', APP_SECRET: 'fake-secret' }), { appId: '123', token: '123|fake-secret' });
-  assert.deepEqual(credentialsFromEnv({ META_APP_ID: '456', APP_ID: '123', APP_SECRET: 'fake-secret', META_UPLOAD_TOKEN: 'fake-token' }), { appId: '456', token: 'fake-token' });
-  assert.deepEqual(credentialsFromEnv({ APP_ID: '123' }), { appId: '123', token: undefined });
+const folder = mkdtempSync(join(tmpdir(), 'tuna-upload-test-'));
+const zipPath = join(folder, 'game.zip');
+writeFileSync(zipPath, 'fake ZIP bytes for mocked HTTP requests');
+after(() => rmSync(folder, { recursive: true, force: true }));
+const options = { appId: '123456', uploadToken: 'EAA-test-only-user-token', appToken: '123456|fake-only-app-secret', zipPath };
+const bundleId = '29493117460280231';
+const ok = stdout => ({ status: 0, stdout });
+const noWait = async () => {};
+
+test('upload and production credentials are distinct; app secret cannot substitute for a user token', () => {
+  assert.deepEqual(credentialsFromEnv({ APP_ID: '123', APP_SECRET: 'fake-secret' }), { appId: '123', uploadToken: undefined, appToken: '123|fake-secret' });
+  assert.deepEqual(credentialsFromEnv({ META_APP_ID: '123', META_APP_SECRET: 'fake-secret', META_UPLOAD_TOKEN: 'EAA-user', META_APP_ACCESS_TOKEN: 'app-token' }), { appId: '123', uploadToken: 'EAA-user', appToken: 'app-token' });
 });
-test('proxy CONNECT rejection is distinguished from Meta API credential failure', () => {
-  assert.throws(() => uploadBundle(options, () => ({ status: 56, stdout: '', stderr: 'curl: (56) CONNECT tunnel failed, response 403; test-only-token' })), error => {
-    assert.match(error.message, /CONNECT 403/);
-    assert.match(error.message, /Meta APIには到達していない/);
-    assert.ok(!error.message.includes(options.token));
-    return true;
+
+for (const [prefix, namespace] of [['EAA', 'fb_game_bundle'], ['GG', 'gg_graph_api']]) {
+  test(`${prefix} upload automatically promotes the exact returned ID, preserving large integers`, async () => {
+    const uploadToken = prefix + '-test-only-user-token';
+    let calls = 0;
+    const result = await deployBundle({ ...options, uploadToken }, (command, args, config) => {
+      assert.equal(command, 'curl');
+      assert.ok(!args.join(' ').includes(uploadToken));
+      assert.ok(!args.join(' ').includes('fake-only-app-secret'));
+      assert.ok(!args.includes('--location'));
+      calls++;
+      if (calls === 1) {
+        assert.equal(args.at(-1), 'https://graph.facebook.com/v24.0/123456/uploads');
+        assert.ok(config.input.includes('Bearer ' + uploadToken));
+        assert.ok(args.includes('file_type=application/zip'));
+        return ok('{"id":"upload:test-session"}');
+      }
+      if (calls === 2) {
+        assert.equal(args.at(-1), `https://rupload.facebook.com/${namespace}/upload:test-session`);
+        assert.ok(config.input.includes('OAuth ' + uploadToken));
+        assert.ok(args.includes('@' + zipPath));
+        assert.ok(args.includes('type: BUNDLE'));
+        return ok('{"success":true,"bundle_instance_id":29493117460280231}');
+      }
+      assert.equal(calls, 3);
+      assert.equal(args.at(-1), 'https://api.facebook.com/instant-games/assets/123456/push-to-production');
+      assert.ok(config.input.includes('OAuth ' + options.appToken));
+      assert.deepEqual(JSON.parse(args[args.indexOf('--data') + 1]), { bundle_instance_id: bundleId });
+      assert.ok(args.includes('X-API-Version: 1.0.0'));
+      return ok('{"success":true}');
+    }, noWait);
+    assert.deepEqual(result, { accepted: true, bundleInstanceId: bundleId });
+    assert.equal(calls, 3);
   });
-  assert.throws(() => uploadBundle(options, () => ({ status: 22, stdout: '{"error":{"code":190}}' })), /Meta error code: 190/);
+}
+
+test('invalid credentials and routing make no requests', async () => {
+  for (const override of [{ appId: '../other' }, { uploadToken: undefined }, { uploadToken: options.appToken }, { uploadToken: 'EAA-bad\nheader' }, { appToken: undefined }, { version: '../route' }, { comment: 'bad\nheader' }]) {
+    await assert.rejects(deployBundle({ ...options, ...override }, () => assert.fail('must not send'), noWait));
+  }
 });
-test('multipart upload keeps credentials off argv and never promotes a build', () => {
+
+test('upload refusal is reported without leaking either credential or promoting anything', async () => {
   let calls = 0;
-  const result = uploadBundle(options, (command, args, config) => {
+  await assert.rejects(deployBundle(options, () => {
     calls++;
-    assert.equal(command, 'curl');
-    assert.equal(args.at(-1), 'https://graph-video.facebook.com/123456/assets');
-    assert.ok(args.includes('type=BUNDLE'));
-    assert.ok(args.includes('asset=@"/tmp/game.zip";type=application/octet-stream'));
-    assert.ok(!args.join(' ').includes(options.token));
-    assert.match(config.input, /Authorization: Bearer test-only-token/);
-    assert.ok(!args.includes('--location'));
-    return { status: 0, stdout: '{"success":true}' };
-  });
-  assert.deepEqual(result, { accepted: true });
-  assert.equal(calls, 1);
+    if (calls === 1) return ok('{"id":"upload:test-session"}');
+    return { status: 22, stdout: JSON.stringify({ debug_info: { type: 'ProcessingFailedError', message: 'User must be admin or developer of the app: ' + options.uploadToken } }) };
+  }, noWait), error => /admin or developer/.test(error.message) && !error.message.includes(options.uploadToken));
+  assert.equal(calls, 2);
 });
-test('invalid credentials or routing cause no network call', () => {
-  const run = () => assert.fail('must not send a request');
-  for (const override of [{ appId: '' }, { appId: '../other' }, { token: '' }, { token: 'a\nb' }, { version: '../release' }]) {
-    assert.throws(() => uploadBundle({ ...options, ...override }, run));
+
+test('upload without a valid returned bundle ID never promotes a build', async () => {
+  for (const response of ['{"success":true}', '{"bundle_instance_id":0}', '{"bundle_instance_id":"not-an-id"}']) {
+    let calls = 0;
+    await assert.rejects(deployBundle(options, () => {
+      calls++;
+      assert.ok(calls <= 2);
+      return ok(calls === 1 ? '{"id":"upload:test-session"}' : response);
+    }, noWait), /ビルドのID/);
+    assert.equal(calls, 2);
   }
 });
-test('App ID and App Secret composite token is passed intact without leaking into argv', () => {
-  const token = '123456|test-only-app-secret';
-  uploadBundle({ ...options, token }, (command, args, config) => {
-    assert.ok(!args.join(' ').includes('test-only-app-secret'));
-    assert.match(config.input, /Authorization: Bearer 123456\|test-only-app-secret/);
-    return { status: 0, stdout: '{"success":true}' };
-  });
-});
-test('API/transport failures are rejected without exposing credentials', () => {
-  for (const response of [
-    { status: 22, stdout: '{"error":{"code":190,"message":"test-only-token"}}' },
-    { status: 1, stderr: 'test-only-token', stdout: '' },
-    { status: 0, stdout: 'unexpected' },
-    { status: 0, stdout: '{}' },
-  ]) assert.throws(() => uploadBundle(options, () => response), error => !error.message.includes(options.token));
+
+test('HTTP 200 with success false is never reported as a successful production switch', async () => {
+  let calls = 0;
+  await assert.rejects(deployBundle(options, () => {
+    calls++;
+    if (calls === 1) return ok('{"id":"upload:test-session"}');
+    if (calls === 2) return ok(JSON.stringify({ bundle_instance_id: bundleId }));
+    return ok('{"success":false,"message":"Failed to productionize app asset"}');
+  }, noWait), error => /Failed to productionize/.test(error.message) && error.bundleInstanceId === bundleId);
+  assert.equal(calls, 8, 'six promotion attempts, no repeated upload');
 });
 
-test('production uses app credentials rather than a user upload token', () => {
-  assert.deepEqual(productionCredentialsFromEnv({ APP_ID: '123', APP_SECRET: 'fake-secret', META_UPLOAD_TOKEN: 'fake-user-token' }), { appId: '123', token: '123|fake-secret' });
-  assert.deepEqual(productionCredentialsFromEnv({ META_APP_ID: '123', META_APP_ACCESS_TOKEN: 'fake-app-token' }), { appId: '123', token: 'fake-app-token' });
-  assert.equal(productionCredentialsFromEnv({ META_APP_ID: '123', META_UPLOAD_TOKEN: 'fake-user-token' }).token, undefined);
+test('processing retry keeps the same ID and does not upload a second bundle', async () => {
+  let calls = 0;
+  const waits = [];
+  const result = await deployBundle(options, (command, args) => {
+    calls++;
+    if (calls === 1) return ok('{"id":"upload:test-session"}');
+    if (calls === 2) return ok(JSON.stringify({ bundle_instance_id: bundleId }));
+    assert.deepEqual(JSON.parse(args[args.indexOf('--data') + 1]), { bundle_instance_id: bundleId });
+    return ok(calls === 3 ? '{"success":false,"message":"Failed to productionize app asset"}' : '{"success":true}');
+  }, async ms => waits.push(ms));
+  assert.equal(result.bundleInstanceId, bundleId);
+  assert.equal(calls, 4);
+  assert.deepEqual(waits, [20000]);
 });
 
-test('production promotion targets one precise bundle without putting credentials in argv', () => {
-  const bundleInstanceId = '12345678901234567890';
-  const result = promoteBundle({ ...options, bundleInstanceId }, (command, args, config) => {
-    assert.equal(command, 'curl');
-    assert.equal(args.at(-1), 'https://api.facebook.com/instant-games/assets/123456/push-to-production');
-    assert.deepEqual(JSON.parse(args[args.indexOf('--data') + 1]), { bundle_instance_id: bundleInstanceId });
-    assert.ok(args.includes('X-API-Version: 1.0.0'));
-    assert.match(config.input, /Authorization: OAuth test-only-token/);
-    assert.ok(!args.join(' ').includes(options.token));
-    assert.ok(!args.includes('--location'));
-    return { status: 0, stdout: '{"success":true}' };
-  });
-  assert.deepEqual(result, { accepted: true, bundleInstanceId });
-});
-
-test('invalid production IDs never make a request; ambiguous responses never claim success', () => {
-  const run = () => assert.fail('must not send a request');
-  for (const bundleInstanceId of ['', '0', '-1', 'latest', '12\n3', 123]) {
-    assert.throws(() => promoteBundle({ ...options, bundleInstanceId }, run));
-  }
-  for (const response of [{ status: 0, stdout: '{}' }, { status: 0, stdout: '{"success":false}' }, { status: 22, stdout: '{"error":{"code":190,"message":"test-only-token"}}' }]) {
-    assert.throws(() => promoteBundle({ ...options, bundleInstanceId: '123' }, () => response), error => !error.message.includes(options.token));
+test('API errors redact the app secret and unknown responses cannot claim success', async () => {
+  for (const response of [ok('{}'), { status: 22, stdout: '{"error":{"code":190,"message":"fake-only-app-secret"}}' }]) {
+    let calls = 0;
+    await assert.rejects(deployBundle(options, () => {
+      calls++;
+      if (calls === 1) return ok('{"id":"upload:test-session"}');
+      if (calls === 2) return ok(JSON.stringify({ bundle_instance_id: bundleId }));
+      return response;
+    }, noWait), error => !error.message.includes('fake-only-app-secret'));
+    assert.equal(calls, 3);
   }
 });

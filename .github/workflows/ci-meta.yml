@@ -1,4 +1,4 @@
-name: CI and Meta upload
+name: CI and Meta deploy
 
 on:
   pull_request:
@@ -6,12 +6,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      bundle_instance_id:
-        description: 'Existing Meta bundle to promote to production; leave empty to upload only'
-        type: string
-        required: false
-        default: ''
 
 permissions:
   contents: read
@@ -42,12 +36,12 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  upload:
-    name: Upload verified build to Meta
+  deploy:
+    name: Upload and promote verified build
     needs: verify
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && inputs.bundle_instance_id == ''
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -57,35 +51,12 @@ jobs:
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           name: meta-game-${{ github.sha }}
-      - name: Upload to Meta
+      - name: Upload and switch to production
         env:
           META_APP_ID: ${{ secrets.META_APP_ID }}
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          META_UPLOAD_TOKEN: ${{ secrets.META_UPLOAD_TOKEN }}
           META_BUILD_COMMENT: TUNA ESCAPE ${{ github.sha }}
         run: |
-          if [ -z "$META_APP_ID" ] || [ -z "$META_APP_SECRET" ]; then
-            echo '::error::Set repository Actions secrets META_APP_ID and META_APP_SECRET.'
-            exit 1
-          fi
           node scripts/upload.mjs
-          echo 'Meta accepted the uploaded build. Production has not been promoted by this job.' >> "$GITHUB_STEP_SUMMARY"
-
-  promote:
-    name: Promote existing Meta build to production
-    needs: verify
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.bundle_instance_id != ''
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: '24'
-      - name: Promote selected bundle
-        env:
-          META_APP_ID: ${{ secrets.META_APP_ID }}
-          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
-          BUNDLE_INSTANCE_ID: ${{ inputs.bundle_instance_id }}
-        run: |
-          node scripts/upload.mjs --promote "$BUNDLE_INSTANCE_ID"
-          echo 'Meta accepted the production promotion request. Verify the served version.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Meta accepted production promotion for the bundle uploaded in this run.' >> "$GITHUB_STEP_SUMMARY"

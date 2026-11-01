@@ -1,32 +1,34 @@
 # Meta Instant Gamesへのデプロイ
 
-GitHub Actionsの「CI and Meta upload」でテスト・ビルド・アップロードを行います。
+GitHub Actionsの「CI and Meta deploy」で、テスト・ビルド・アップロード・本番切替を実行します。
 
-- PRでは `npm test` と `npm run build` を実行します。
-- `main`へのpushでは、検証したゲームZIPをMetaへアップロードします。
-- 手動で実行する場合は、Actionsから `main` を選んで「Run workflow」を実行します。
+- PRではテストとビルドを実行します。
+- `main`へのpushでは、検証したゲームZIPをアップロードし、その応答の `bundle_instance_id` を自動的に本番切替APIへ渡します。
+- 再実行する場合は、Actionsから `main` を選んで「Run workflow」を実行します。ビルドIDの入力は不要です。
 
-ビルドコメントには対象コミットのSHAが入り、ゲームZIPはActionsの成果物として14日間保存されます。
+本番切替の成功応答を確認できなければ、Actionsは失敗になります。ビルドコメントにはコミットSHAが入り、ゲームZIPはActionsの成果物として14日間保存されます。
 
 ## 認証
 
-既存のリポジトリActions Secrets `META_APP_ID` と `META_APP_SECRET` を使います。値をソースやworkflowファイルへ記載しないでください。Secretsが参照できない場合、アップロードジョブはエラーになります。
+リポジトリのActions Secretsを使います。値をソースやworkflowファイルへ記載しないでください。
 
-送信先は `https://graph-video.facebook.com/{app-id}/assets` です。`scripts/upload.mjs` がApp Access Tokenをメモリー上で構成し、ログやコマンド引数へ出さずに送信します。
+| Secret | 用途 |
+| --- | --- |
+| `META_APP_ID` | 対象MetaアプリのApp ID |
+| `META_APP_SECRET` | 本番切替用App Access Tokenの生成 |
+| `META_UPLOAD_TOKEN` | 同じアプリの管理者・開発者権限を持つUserまたはSystem User Access Token。GGまたはEAAで始まるトークン |
 
-## 本番切り替え
+既存のApp IDとApp Secretはそのまま使います。App Secretだけの認証は、新アップロードAPIのバイナリ送信で「User must be admin or developer of the app」と403になったため、アップロード用のUser/System Userトークンも必要です。トークンや権限に問題がある場合、本番切替は行わずActionsを失敗にします。
 
-アップロードと本番切り替えは別の操作です。Actionsの「CI and Meta upload」で `main` を選び、手動実行の `bundle_instance_id` にMeta上の対象ビルドIDを指定すると、その既存ビルドを本番へ切り替えます。この場合、重複アップロードはしません。表示用のバージョン番号やコミットSHAではなく、`bundle_instance_id` を指定してください。
+## APIの流れ
 
-既存のApp IDとApp Secretを使い、[Meta公式の本番切替API](https://developers.facebook.com/documentation/games/launch/upload-bundle) `POST https://api.facebook.com/instant-games/assets/{app-id}/push-to-production` に送信します。本番切替要求が受理された後、配信版の起動・言語表示・操作を確認してください。
+[Meta公式のアップロード手順](https://developers.facebook.com/documentation/games/launch/upload-bundle)に従います。
 
-ローカルから実行する場合：
+1. `graph.facebook.com/v24.0/{app-id}/uploads` でアップロードセッションを取得します。
+2. `rupload.facebook.com` へZIPを送信します。GGトークンは `gg_graph_api`、EAAトークンは `fb_game_bundle` を使います。
+3. 応答のビルドIDを文字列として保持し、`api.facebook.com/instant-games/assets/{app-id}/push-to-production` に送信します。
 
-```sh
-node --env-file=/path/to/credentials.env scripts/upload.mjs --promote BUNDLE_INSTANCE_ID
-```
-
-現在の旧アップロードAPIはビルドIDを返しません。IDを得られる公式の新アップロードAPIは、アプリの管理者・開発者権限を持つUserまたはSystem User Access Tokenを要求し、App IDとApp Secretだけの認証ではバイナリ送信が拒否されました。そのため、現状のpush時の自動処理はアップロードまでで、本番切替は対象ビルドIDを指定して実行します。
+アップロードでIDが取得できなければ、本番切替を停止します。切替時にMetaが汎用の処理失敗を返す場合は、同じIDに対して最大6回、20秒間隔で再試行します。成功応答の後、実際の配信への反映には数分かかる場合があります。
 
 ## ローカルビルド
 

@@ -20,14 +20,6 @@ GitHub Actionsの「CI and Meta deploy」で、テスト・ビルド・アップ
 
 既存のApp IDとApp Secretから、`graph.facebook.com/oauth/access_token` の `client_credentials` で正式なApp Access Tokenを発行します。App Secret自体をアップロード用トークンとして送りません。Secretと発行したトークンはログ・URL・コマンド引数・ファイルに出力しません。取得済みのApp Access Tokenを使う場合は `META_APP_ACCESS_TOKEN` 環境変数でも指定できます。
 
-### 現在確認できている制約（2026-11-01）
-
-Meta管理画面の案内どおり、App Access Tokenによる従来API（`graph-video.facebook.com/{app-id}/assets`）へのアップロードは成功しました。したがって、アップロード全般にUser Tokenが必須という説明は誤りです。
-
-一方、同じApp Access Tokenで下記の新アップロードAPIを実行すると、セッション取得は成功し、ZIP送信は403（`User must be admin or developer of the app`）になります。従来APIは `success: true` のみを返し、本番切替に必要な `bundle_instance_id` を返しません。共有された最新ビルドのPlayリンク内のIDを使った本番切替も、認証を通過した後に `success: false` / `Failed to productionize app asset` を返しました。PlayリンクのIDが新APIの `bundle_instance_id` と同じ意味かは確認できていません。
-
-このため、現在の認証情報で自動本番切替が成功することは確認できていません。ActionsはMetaの失敗をそのまま失敗として扱います。追加のUser Tokenで解決するとも断定できません。
-
 ## APIの流れ
 
 [Meta公式のアップロード手順](https://developers.facebook.com/documentation/games/launch/upload-bundle)に従います。

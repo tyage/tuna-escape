@@ -6,6 +6,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      bundle_instance_id:
+        description: 'Existing Meta bundle to promote to production; leave empty to upload only'
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -39,7 +45,7 @@ jobs:
   upload:
     name: Upload verified build to Meta
     needs: verify
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && inputs.bundle_instance_id == ''
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -62,4 +68,24 @@ jobs:
             exit 1
           fi
           node scripts/upload.mjs
-          echo 'Meta accepted the uploaded build. Staging has not been switched by this workflow.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Meta accepted the uploaded build. Production has not been promoted by this job.' >> "$GITHUB_STEP_SUMMARY"
+
+  promote:
+    name: Promote existing Meta build to production
+    needs: verify
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.bundle_instance_id != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Promote selected bundle
+        env:
+          META_APP_ID: ${{ secrets.META_APP_ID }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          BUNDLE_INSTANCE_ID: ${{ inputs.bundle_instance_id }}
+        run: |
+          node scripts/upload.mjs --promote "$BUNDLE_INSTANCE_ID"
+          echo 'Meta accepted the production promotion request. Verify the served version.' >> "$GITHUB_STEP_SUMMARY"

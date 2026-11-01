@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { uploadBundle, credentialsFromEnv } from '../scripts/upload.mjs';
+import { uploadBundle, credentialsFromEnv, productionCredentialsFromEnv, promoteBundle } from '../scripts/upload.mjs';
 
 const options = { appId: '123456', token: 'test-only-token', zipPath: '/tmp/game.zip' };
 test('env file App ID and Secret are supported, with explicit token taking precedence', () => {
@@ -54,4 +54,35 @@ test('API/transport failures are rejected without exposing credentials', () => {
     { status: 0, stdout: 'unexpected' },
     { status: 0, stdout: '{}' },
   ]) assert.throws(() => uploadBundle(options, () => response), error => !error.message.includes(options.token));
+});
+
+test('production uses app credentials rather than a user upload token', () => {
+  assert.deepEqual(productionCredentialsFromEnv({ APP_ID: '123', APP_SECRET: 'fake-secret', META_UPLOAD_TOKEN: 'fake-user-token' }), { appId: '123', token: '123|fake-secret' });
+  assert.deepEqual(productionCredentialsFromEnv({ META_APP_ID: '123', META_APP_ACCESS_TOKEN: 'fake-app-token' }), { appId: '123', token: 'fake-app-token' });
+  assert.equal(productionCredentialsFromEnv({ META_APP_ID: '123', META_UPLOAD_TOKEN: 'fake-user-token' }).token, undefined);
+});
+
+test('production promotion targets one precise bundle without putting credentials in argv', () => {
+  const bundleInstanceId = '12345678901234567890';
+  const result = promoteBundle({ ...options, bundleInstanceId }, (command, args, config) => {
+    assert.equal(command, 'curl');
+    assert.equal(args.at(-1), 'https://api.facebook.com/instant-games/assets/123456/push-to-production');
+    assert.deepEqual(JSON.parse(args[args.indexOf('--data') + 1]), { bundle_instance_id: bundleInstanceId });
+    assert.ok(args.includes('X-API-Version: 1.0.0'));
+    assert.match(config.input, /Authorization: OAuth test-only-token/);
+    assert.ok(!args.join(' ').includes(options.token));
+    assert.ok(!args.includes('--location'));
+    return { status: 0, stdout: '{"success":true}' };
+  });
+  assert.deepEqual(result, { accepted: true, bundleInstanceId });
+});
+
+test('invalid production IDs never make a request; ambiguous responses never claim success', () => {
+  const run = () => assert.fail('must not send a request');
+  for (const bundleInstanceId of ['', '0', '-1', 'latest', '12\n3', 123]) {
+    assert.throws(() => promoteBundle({ ...options, bundleInstanceId }, run));
+  }
+  for (const response of [{ status: 0, stdout: '{}' }, { status: 0, stdout: '{"success":false}' }, { status: 22, stdout: '{"error":{"code":190,"message":"test-only-token"}}' }]) {
+    assert.throws(() => promoteBundle({ ...options, bundleInstanceId: '123' }, () => response), error => !error.message.includes(options.token));
+  }
 });

@@ -14,9 +14,52 @@ const bundleId = '29493117460280231';
 const ok = stdout => ({ status: 0, stdout });
 const noWait = async () => {};
 
-test('upload and production credentials are distinct; app secret cannot substitute for a user token', () => {
-  assert.deepEqual(credentialsFromEnv({ APP_ID: '123', APP_SECRET: 'fake-secret' }), { appId: '123', uploadToken: undefined, appToken: '123|fake-secret' });
-  assert.deepEqual(credentialsFromEnv({ META_APP_ID: '123', META_APP_SECRET: 'fake-secret', META_UPLOAD_TOKEN: 'EAA-user', META_APP_ACCESS_TOKEN: 'app-token' }), { appId: '123', uploadToken: 'EAA-user', appToken: 'app-token' });
+test('credentials keep the App Secret separate from access tokens, including empty Actions values', () => {
+  assert.deepEqual(credentialsFromEnv({ APP_ID: '123', APP_SECRET: 'fake-secret', META_UPLOAD_TOKEN: '' }), { appId: '123', appSecret: 'fake-secret', uploadToken: undefined, appToken: undefined });
+  assert.deepEqual(credentialsFromEnv({ META_APP_ID: '123', META_APP_SECRET: 'fake-secret', META_UPLOAD_TOKEN: 'EAA-user', META_APP_ACCESS_TOKEN: 'app-token' }), { appId: '123', appSecret: 'fake-secret', uploadToken: 'EAA-user', appToken: 'app-token' });
+});
+
+test('existing App ID and App Secret automatically issue an App Access Token through OAuth', async () => {
+  const appSecret = 'fake-only-client-secret';
+  const issuedToken = 'GG|123456|fake-only-issued-app-token';
+  let calls = 0;
+  const result = await deployBundle({ appId: '123456', appSecret, zipPath }, (command, args, config) => {
+    calls++;
+    assert.ok(!args.join(' ').includes(appSecret));
+    assert.ok(!args.join(' ').includes('fake-only-issued-app-token'));
+    assert.ok(!args.includes('--location'));
+    if (calls === 1) {
+      assert.equal(args.at(-1), 'https://graph.facebook.com/oauth/access_token');
+      assert.ok(args.includes('@-'));
+      assert.deepEqual(Object.fromEntries(new URLSearchParams(config.input)), { client_id: '123456', client_secret: appSecret, grant_type: 'client_credentials' });
+      return ok(JSON.stringify({ access_token: issuedToken }));
+    }
+    assert.ok(!config.input.includes(appSecret));
+    if (calls === 2) {
+      assert.ok(config.input.includes('Bearer ' + issuedToken));
+      return ok('{"id":"upload:app-session"}');
+    }
+    if (calls === 3) {
+      assert.equal(args.at(-1), 'https://rupload.facebook.com/gg_graph_api/upload:app-session');
+      assert.ok(config.input.includes('OAuth ' + issuedToken));
+      return ok(JSON.stringify({ bundle_instance_id: bundleId }));
+    }
+    assert.equal(calls, 4);
+    assert.ok(config.input.includes('OAuth 123456|fake-only-issued-app-token'));
+    assert.ok(!config.input.includes('GG|'));
+    return ok('{"success":true}');
+  }, noWait);
+  assert.equal(result.bundleInstanceId, bundleId);
+  assert.equal(calls, 4);
+});
+
+test('OAuth failure stops before uploading and never logs its response or secret', async () => {
+  let calls = 0;
+  await assert.rejects(deployBundle({ appId: '123456', appSecret: 'private-client-secret', zipPath }, () => {
+    calls++;
+    return { status: 22, stdout: '{"error":{"message":"private-client-secret"}}' };
+  }, noWait), error => /OAuth/.test(error.message) && !error.message.includes('private-client-secret'));
+  assert.equal(calls, 1);
 });
 
 for (const [prefix, namespace] of [['EAA', 'fb_game_bundle'], ['GG', 'gg_graph_api']]) {
@@ -55,8 +98,10 @@ for (const [prefix, namespace] of [['EAA', 'fb_game_bundle'], ['GG', 'gg_graph_a
 }
 
 test('invalid credentials and routing make no requests', async () => {
-  for (const override of [{ appId: '../other' }, { uploadToken: undefined }, { uploadToken: options.appToken }, { uploadToken: 'EAA-bad\nheader' }, { appToken: undefined }, { version: '../route' }, { comment: 'bad\nheader' }]) {
-    await assert.rejects(deployBundle({ ...options, ...override }, () => assert.fail('must not send'), noWait));
+  for (const override of [{ appId: '../other' }, { uploadToken: options.appToken }, { uploadToken: 'EAA-bad\nheader' }, { appToken: undefined }, { version: '../route' }, { comment: 'bad\nheader' }]) {
+    let calls = 0;
+    await assert.rejects(deployBundle({ ...options, ...override }, () => { calls++; return ok('{}'); }, noWait));
+    assert.equal(calls, 0);
   }
 });
 

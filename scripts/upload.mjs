@@ -8,9 +8,32 @@ export function credentialsFromEnv(env) {
   const appSecret = env.META_APP_SECRET || env.APP_SECRET;
   return {
     appId,
-    uploadToken: env.META_UPLOAD_TOKEN,
-    appToken: env.META_APP_ACCESS_TOKEN || (appId && appSecret ? `${appId}|${appSecret}` : undefined),
+    appSecret,
+    uploadToken: env.META_UPLOAD_TOKEN || undefined,
+    appToken: env.META_APP_ACCESS_TOKEN || undefined,
   };
+}
+
+function issueAppToken(appId, appSecret, run) {
+  if (!appSecret || /[\r\n\0]/.test(appSecret)) throw new Error('META_APP_SECRET または META_APP_ACCESS_TOKEN が必要です。');
+  // Send the App Secret only to Meta's OAuth endpoint, in stdin rather than
+  // argv, a URL, or a file. Never substitute the raw secret for an upload token.
+  const result = run('curl', [
+    '--silent', '--show-error', '--fail-with-body', '--proto', '=https',
+    '--connect-timeout', '20', '--max-time', '120', '--request', 'POST',
+    '--header', 'Content-Type: application/x-www-form-urlencoded',
+    '--data-binary', '@-', 'https://graph.facebook.com/oauth/access_token',
+  ], {
+    input: new URLSearchParams({ client_id: appId, client_secret: appSecret, grant_type: 'client_credentials' }).toString(),
+    encoding: 'utf8', timeout: 125000, maxBuffer: 1024 * 1024,
+  });
+  let payload;
+  try { payload = JSON.parse(result.stdout || ''); } catch { /* Fail closed. */ }
+  if (result.error || result.status !== 0 || payload?.error || typeof payload?.access_token !== 'string' || !payload.access_token || /[\r\n\0]/.test(payload.access_token)) {
+    // OAuth responses can contain credentials; never include their body in logs.
+    throw new Error('Meta OAuthでApp Access Tokenを発行できませんでした。App IDとApp Secretを確認してください。');
+  }
+  return payload.access_token;
 }
 
 function redact(message, token) {
@@ -46,19 +69,23 @@ function post(url, token, scheme, args, operation, run) {
   return payload;
 }
 
-export async function deployBundle({ appId, uploadToken, appToken, zipPath, comment = 'TUNA ESCAPE', version = 'v24.0' }, run = spawnSync, wait = ms => new Promise(resolve => setTimeout(resolve, ms))) {
+export async function deployBundle({ appId, appSecret, uploadToken, appToken, zipPath, comment = 'TUNA ESCAPE', version = 'v24.0' }, run = spawnSync, wait = ms => new Promise(resolve => setTimeout(resolve, ms))) {
   if (!/^\d+$/.test(appId || '')) throw new Error('META_APP_ID が必要です。');
   if (typeof uploadToken === 'string' && /^[a-f0-9]{32}$/i.test(uploadToken)) {
-    throw new Error('参照したSecretの値はApp Secret形式です（値は非表示）。アップロードには別途、UserまたはSystem User Access Tokenが必要です。');
+    throw new Error('META_UPLOAD_TOKEN の値はApp Secret形式です（値は非表示）。App SecretはMETA_APP_SECRETへ設定してください。App Access TokenはOAuthで発行します。');
   }
-  if (!uploadToken || !/^(GG|EAA)/.test(uploadToken) || /[\r\n\0]/.test(uploadToken)) {
-    throw new Error('META_UPLOAD_TOKEN に対象アプリの管理者・開発者権限を持つUserまたはSystem User Access Tokenを設定してください。App Secretだけでは新アップロードAPIを利用できません。');
+  if (uploadToken !== undefined && (!uploadToken || !/^(GG|EAA)/.test(uploadToken) || /[\r\n\0]/.test(uploadToken))) {
+    throw new Error('META_UPLOAD_TOKEN に有効なAccess Tokenを設定してください。省略するとApp Access Tokenを使用します。');
   }
-  if (!appToken || /[\r\n\0]/.test(appToken)) throw new Error('META_APP_SECRET または META_APP_ACCESS_TOKEN が必要です。');
+  if (appToken !== undefined && (!appToken || /[\r\n\0]/.test(appToken))) throw new Error('META_APP_ACCESS_TOKEN の形式が不正です。');
   if (!/^v\d+\.\d+$/.test(version)) throw new Error('META_GRAPH_VERSION は vXX.X 形式で指定してください。');
   if (!zipPath || /[\r\n\0]/.test(zipPath) || /[\r\n\0]/.test(comment)) throw new Error('ZIPパスまたはビルドコメントが不正です。');
   const file = statSync(zipPath);
   if (!file.isFile() || !file.size) throw new Error('ゲームZIPがありません。npm run build を実行してください。');
+  const issuedToken = appToken || issueAppToken(appId, appSecret, run);
+  uploadToken ||= issuedToken;
+  // The production API expects appId|token; Meta OAuth can return GG|appId|token.
+  appToken = issuedToken.startsWith(`GG|${appId}|`) ? issuedToken.slice(3) : issuedToken;
 
   const session = post(`https://graph.facebook.com/${version}/${appId}/uploads`, uploadToken, 'Bearer', [
     '--data-urlencode', `file_name=${basename(zipPath)}`,

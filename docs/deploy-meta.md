@@ -16,7 +16,7 @@ GitHub Actionsの「CI and Meta deploy」で、テスト・ビルド・アップ
 | --- | --- |
 | `META_APP_ID` | 対象MetaアプリのApp ID |
 | `META_APP_SECRET` | Meta OAuthでApp Access Tokenを発行するためのApp Secret |
-| `META_UPLOAD_TOKEN` | 任意。アップロードに別のAccess Tokenを使う場合のみ設定 |
+| `META_UPLOAD_TOKEN` | 対象アプリの管理者・開発者のUser Access Token、またはアプリの管理権限を持つSystem User Token |
 
 既存のApp IDとApp Secretから、`graph.facebook.com/oauth/access_token` の `client_credentials` で正式なApp Access Tokenを発行します。App Secret自体をアップロード用トークンとして送りません。Secretと発行したトークンはログ・URL・コマンド引数・ファイルに出力しません。取得済みのApp Access Tokenを使う場合は `META_APP_ACCESS_TOKEN` 環境変数でも指定できます。
 
@@ -29,7 +29,7 @@ GitHub Actionsの「CI and Meta deploy」で、テスト・ビルド・アップ
 3. `rupload.facebook.com` へZIPを送信します。GGトークンは `gg_graph_api`、EAAトークンは `fb_game_bundle` を使います。
 4. 応答のビルドIDを文字列として保持し、`api.facebook.com/instant-games/assets/{app-id}/push-to-production` に送信します。本番切替APIでは `GG|{app-id}|...` の先頭の `GG|` を外します。
 
-アップロードでIDが取得できなければ、本番切替を停止します。切替時にMetaが汎用の処理失敗を返す場合は、同じIDに対して最大6回、20秒間隔で再試行します。成功応答の後、実際の配信への反映には数分かかる場合があります。
+アップロードでIDが取得できなければ、本番切替を停止します。切替時にMetaが処理中または汎用の処理失敗を返す場合は、同じIDに対して最大6回、20秒間隔で再試行します。成功応答の後、実際の配信への反映には数分かかる場合があります。
 
 ## ローカルビルド
 

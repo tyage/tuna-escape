@@ -63,7 +63,10 @@ function post(url, token, scheme, args, operation, run) {
     const code = payload?.error?.code || payload?.status;
     const message = payload?.error?.message || payload?.debug_info?.message || payload?.message || payload?.detail;
     const error = new Error(`${operation}に失敗しました。${Number.isInteger(code) ? `Meta code: ${code}。` : ''}${message ? redact(message, token) : '通信・API応答を確認してください。'}`);
-    error.retryablePromotionFailure = operation === '本番切替' && payload?.success === false && payload?.message === 'Failed to productionize app asset';
+    error.retryablePromotionFailure = operation === '本番切替' && payload?.success === false && [
+      'Failed to productionize app asset',
+      'Version must be finished processing in order to productionize',
+    ].includes(payload?.message);
     throw error;
   }
   return payload;

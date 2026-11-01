@@ -143,7 +143,8 @@ test('HTTP 200 with success false is never reported as a successful production s
   assert.equal(calls, 8, 'six promotion attempts, no repeated upload');
 });
 
-test('processing retry keeps the same ID and does not upload a second bundle', async () => {
+for (const message of ['Failed to productionize app asset', 'Version must be finished processing in order to productionize']) {
+test(`processing retry keeps the same ID without reupload: ${message}`, async () => {
   let calls = 0;
   const waits = [];
   const result = await deployBundle(options, (command, args) => {
@@ -151,12 +152,13 @@ test('processing retry keeps the same ID and does not upload a second bundle', a
     if (calls === 1) return ok('{"id":"upload:test-session"}');
     if (calls === 2) return ok(JSON.stringify({ bundle_instance_id: bundleId }));
     assert.deepEqual(JSON.parse(args[args.indexOf('--data') + 1]), { bundle_instance_id: bundleId });
-    return ok(calls === 3 ? '{"success":false,"message":"Failed to productionize app asset"}' : '{"success":true}');
+    return ok(calls === 3 ? JSON.stringify({ success: false, message }) : '{"success":true}');
   }, async ms => waits.push(ms));
   assert.equal(result.bundleInstanceId, bundleId);
   assert.equal(calls, 4);
   assert.deepEqual(waits, [20000]);
 });
+}
 
 test('API errors redact the app secret and unknown responses cannot claim success', async () => {
   for (const response of [ok('{}'), { status: 22, stdout: '{"error":{"code":190,"message":"fake-only-app-secret"}}' }]) {
